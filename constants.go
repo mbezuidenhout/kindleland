@@ -3,8 +3,6 @@
 
 package kindleland
 
-const FrameBufferDevice = "/dev/fb/0"
-
 type UpdateMode int
 
 const (

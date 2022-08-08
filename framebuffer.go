@@ -16,7 +16,7 @@ func Gray4Downsample(c color.Color) uint8 {
 }
 
 func NewFrameBuffer(device string, width, height int) (*FrameBuffer, error) {
-	file, err := os.OpenFile("/dev/fb0", os.O_RDWR, 0)
+	file, err := os.OpenFile(device, os.O_RDWR, 0)
 	size := 240000
 	defer file.Close()
 	if err != nil {
@@ -28,6 +28,7 @@ func NewFrameBuffer(device string, width, height int) (*FrameBuffer, error) {
 		panic(err)
 	}
 	return &FrameBuffer{
+		fd:     fd,
 		buffer: fb,
 		Width:  width,
 		Height: height,
@@ -58,6 +59,7 @@ func (fb *FrameBuffer) Pixel(x, y int, level uint8) error {
 }
 
 type FrameBuffer struct {
+	fd     int
 	buffer []byte
 	Width  int
 	Height int
@@ -81,24 +83,12 @@ func (fb *FrameBuffer) ApplyImage(img image.Image) error {
 
 // ClearScreen clears the screen and empties the framebuffer
 func (fb *FrameBuffer) ClearScreen() error {
-	file, err := os.OpenFile(FrameBufferDevice, os.O_WRONLY, 0)
-	defer file.Close()
-	if err != nil {
-		return err
-	}
-
-	return unix.IoctlSetInt(int(file.Fd()), FBIOEinkClearScreen, 0)
+	return unix.IoctlSetInt(fb.fd, FBIOEinkClearScreen, 0)
 }
 
 // UpdateScreen flushes any changes to the framebuffer to the display.
 func (fb *FrameBuffer) UpdateScreen() error {
-	file, err := os.OpenFile(FrameBufferDevice, os.O_WRONLY, 0)
-	defer file.Close()
-	if err != nil {
-		return err
-	}
-
-	_, err = unix.IoctlGetInt(int(file.Fd()), FBIOEinkUpdateDisplay)
+	_, err := unix.IoctlGetInt(fb.fd, FBIOEinkUpdateDisplay)
 	if err != nil {
 		return err
 	}
@@ -106,13 +96,7 @@ func (fb *FrameBuffer) UpdateScreen() error {
 }
 
 func (fb *FrameBuffer) UpdateScreenFx(mode UpdateMode) error {
-	file, err := os.OpenFile(FrameBufferDevice, os.O_WRONLY, 0)
-	defer file.Close()
-	if err != nil {
-		return err
-	}
-
-	err = unix.IoctlSetPointerInt(int(file.Fd()), FBIOEinkUpdateDisplayFx, int(mode))
+	err := unix.IoctlSetPointerInt(fb.fd, FBIOEinkUpdateDisplayFx, int(mode))
 	if err != nil {
 		return err
 	}
