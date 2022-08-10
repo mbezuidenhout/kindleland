@@ -28,7 +28,7 @@ func NewFrameBuffer(device string, width, height int) (*FrameBuffer, error) {
 		panic(err)
 	}
 	return &FrameBuffer{
-		fd:     fd,
+		device: device,
 		buffer: fb,
 		Width:  width,
 		Height: height,
@@ -59,7 +59,7 @@ func (fb *FrameBuffer) Pixel(x, y int, level uint8) error {
 }
 
 type FrameBuffer struct {
-	fd     int
+	device string
 	buffer []byte
 	Width  int
 	Height int
@@ -83,12 +83,24 @@ func (fb *FrameBuffer) ApplyImage(img image.Image) error {
 
 // ClearScreen clears the screen and empties the framebuffer
 func (fb *FrameBuffer) ClearScreen() error {
-	return unix.IoctlSetInt(fb.fd, FBIOEinkClearScreen, 0)
+	file, err := os.OpenFile(fb.device, os.O_WRONLY, 0)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	return unix.IoctlSetInt(int(file.Fd()), FBIOEinkClearScreen, 0)
 }
 
 // UpdateScreen flushes any changes to the framebuffer to the display.
 func (fb *FrameBuffer) UpdateScreen() error {
-	_, err := unix.IoctlGetInt(fb.fd, FBIOEinkUpdateDisplay)
+	file, err := os.OpenFile(fb.device, os.O_WRONLY, 0)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	_, err = unix.IoctlGetInt(int(file.Fd()), FBIOEinkUpdateDisplay)
 	if err != nil {
 		return err
 	}
@@ -96,7 +108,13 @@ func (fb *FrameBuffer) UpdateScreen() error {
 }
 
 func (fb *FrameBuffer) UpdateScreenFx(mode UpdateMode) error {
-	err := unix.IoctlSetPointerInt(fb.fd, FBIOEinkUpdateDisplayFx, int(mode))
+	file, err := os.OpenFile(fb.device, os.O_WRONLY, 0)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+
+	err = unix.IoctlSetPointerInt(int(file.Fd()), FBIOEinkUpdateDisplayFx, int(mode))
 	if err != nil {
 		return err
 	}

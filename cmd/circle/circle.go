@@ -3,9 +3,10 @@ package main
 import (
 	"image/color"
 
+	"github.com/mbezuidenhout/kindleland"
+
 	"github.com/fogleman/gg"
 	"github.com/golang/freetype/truetype"
-	"github.com/jim/kindleland"
 	"golang.org/x/image/font/gofont/goregular"
 )
 
