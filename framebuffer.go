@@ -10,14 +10,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Gray4Downsample(c color.Color) uint8 {
-	red, _, _, _ := c.RGBA()
-	return uint8(red) >> 4
-}
+// This code works on the Kindle 4 with 8 bit gray values.
 
 func NewFrameBuffer(device string, width, height int) (*FrameBuffer, error) {
 	file, err := os.OpenFile(device, os.O_RDWR, 0)
-	size := 240000
+	size := 480000
 	defer file.Close()
 	if err != nil {
 		panic(err)
@@ -37,24 +34,11 @@ func NewFrameBuffer(device string, width, height int) (*FrameBuffer, error) {
 
 // Pixel sets the value of the pixel at x, y.
 func (fb *FrameBuffer) Pixel(x, y int, level uint8) error {
-	if level < 0 || level > 15 {
-		return fmt.Errorf("level must be between 0 and 15, got %d", level)
-	}
-	offset := x/2 + (y * fb.Width / 2)
+	offset := x + (y * fb.Width)
 	if offset >= len(fb.buffer) {
 		return fmt.Errorf("%d is out of range; max is %d; x: %d, y: %d", offset, len(fb.buffer)-1, x, y)
 	}
-
-	bits := uint8(fb.buffer[offset])
-
-	var newBits uint8
-	if x%2 == 0 {
-		newBits = (bits & 15) + (level * 16)
-	} else {
-		newBits = (bits & 240) + level
-	}
-
-	fb.buffer[offset] = byte(newBits)
+	fb.buffer[offset] = byte(255 - level)
 	return nil
 }
 
@@ -68,11 +52,11 @@ type FrameBuffer struct {
 // ApplyImage copies each pixel value from img and places it at the same position in the framebuffer.
 // img and the framebuffer are expected to have the same dimensions. No checks are done to verify this.
 func (fb *FrameBuffer) ApplyImage(img image.Image) error {
+	//colorModel := img.ColorModel()
 	for y := 0; y < fb.Height; y++ {
 		for x := 0; x < fb.Width; x++ {
-			color := img.At(x, y)
-			gray := Gray4Downsample(color)
-			err := fb.Pixel(x, y, gray)
+			colorAt := img.At(x, y)
+			err := fb.Pixel(x, y, color.GrayModel.Convert(colorAt).(color.Gray).Y)
 			if err != nil {
 				return err
 			}
@@ -123,20 +107,15 @@ func (fb *FrameBuffer) UpdateScreenFx(mode UpdateMode) error {
 
 // At returns the value of the pixel at x, y.
 func (fb *FrameBuffer) At(x, y int) (color.Gray, error) {
-	offset := x/2 + (y * fb.Width / 2)
+	offset := x + (y * fb.Width)
 	if offset >= len(fb.buffer) {
 		return color.Gray{}, fmt.Errorf("%d is out of range; max is %d; x: %d, y: %d", offset, len(fb.buffer)-1, x, y)
 	}
 
-	bits := uint8(fb.buffer[offset])
+	// Flip the bits so that 0 is black and 255 is white
+	bits := 255 - uint8(fb.buffer[offset])
 
-	var c uint8
-	if x%2 == 0 {
-		c = bits & 240
-	} else {
-		c = (bits & 15) << 4
-	}
-	return color.Gray{Y: 255 - c}, nil
+	return color.Gray{Y: bits}, nil
 }
 
 // Image returns an image.Image containing the current value of the framebuffer.Image
